@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIA Style Geospatial Console</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; background: #000; color: #00ff41; font-family: 'Courier New', monospace; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.7) contrast(1.2) saturate(0.5); }
+        
+        .ui-panel {
+            position: absolute; z-index: 1000;
+            background: rgba(0, 15, 0, 0.85);
+            border: 1px solid #00ff41;
+            padding: 15px;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+            pointer-events: auto;
+        }
+
+        .top-left { top: 20px; left: 20px; width: 300px; }
+        .bottom-bar { bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; }
+
+        h1 { font-size: 16px; margin: 0 0 10px 0; border-bottom: 1px solid #00ff41; padding-bottom: 5px; text-transform: uppercase; }
+        .status-item { font-size: 12px; margin: 5px 0; display: flex; justify-content: space-between; }
+        .blink { animation: blinker 1.5s linear infinite; color: #ff0000; }
+        @keyframes blinker { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div class="ui-panel top-left">
+        <h1>WORLDVIEW SYSTEM v4.6</h1>
+        <div class="status-item"><span>Voli Attivi:</span> <span id="flight-status">0</span></div>
+        <div class="status-item"><span>Satelliti:</span> <span id="sat-status">ONLINE</span></div>
+        <div class="status-item"><span>Rischio:</span> <span class="blink">CRITICO</span></div>
+    </div>
+
+    <div class="ui-panel bottom-bar">
+        <div id="ai-analysis">🤖 AI: Inizializzazione protocollo Gemini 3.1 + Opus 4.6...</div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
