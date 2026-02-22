@@ -2,42 +2,42 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CIA Style Geospatial Console</title>
+    <title>Nico Intelligence Console</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; background: #000; color: #00ff41; font-family: 'Courier New', monospace; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.7) contrast(1.2) saturate(0.5); }
+        body { margin: 0; background: #000; color: #00ff41; font-family: 'Courier New', monospace; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.6) contrast(1.2); }
         
-        .ui-panel {
-            position: absolute; z-index: 1000;
-            background: rgba(0, 15, 0, 0.85);
-            border: 1px solid #00ff41;
-            padding: 15px;
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
-            pointer-events: auto;
+        .ui-overlay {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(0, 20, 0, 0.9); border: 1px solid #00ff41;
+            padding: 15px; width: 320px; box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
         }
 
-        .top-left { top: 20px; left: 20px; width: 300px; }
-        .bottom-bar { bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%; text-align: center; }
+        .ai-terminal {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(0, 10, 0, 0.85); border: 1px solid #00ff41;
+            width: 80%; padding: 15px; font-size: 14px;
+        }
 
-        h1 { font-size: 16px; margin: 0 0 10px 0; border-bottom: 1px solid #00ff41; padding-bottom: 5px; text-transform: uppercase; }
-        .status-item { font-size: 12px; margin: 5px 0; display: flex; justify-content: space-between; }
-        .blink { animation: blinker 1.5s linear infinite; color: #ff0000; }
-        @keyframes blinker { 50% { opacity: 0; } }
+        h1 { font-size: 18px; margin: 0 0 10px 0; text-transform: uppercase; border-bottom: 1px solid #00ff41; }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
+        .scanning { color: #ff0000; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="ui-panel top-left">
-        <h1>WORLDVIEW SYSTEM v4.6</h1>
-        <div class="status-item"><span>Voli Attivi:</span> <span id="flight-status">0</span></div>
-        <div class="status-item"><span>Satelliti:</span> <span id="sat-status">ONLINE</span></div>
-        <div class="status-item"><span>Rischio:</span> <span class="blink">CRITICO</span></div>
+    <div class="ui-overlay">
+        <h1>GEOSPATIAL SYSTEM v3.1</h1>
+        <div class="data-row"><span>STATUS:</span> <span style="color:white">ACTIVE</span></div>
+        <div class="data-row"><span>FLIGHTS:</span> <span id="flight-count">0</span></div>
+        <div class="data-row"><span>LOCATION:</span> <span>ITALY SECTOR</span></div>
+        <div class="data-row"><span>SCANNING:</span> <span class="scanning">LIVE ADS-B</span></div>
     </div>
 
-    <div class="ui-panel bottom-bar">
-        <div id="ai-analysis">🤖 AI: Inizializzazione protocollo Gemini 3.1 + Opus 4.6...</div>
+    <div class="ai-terminal" id="ai-log">
+        🤖 INITIALIZING GEMINI AI ANALYSIS...
     </div>
 
     <div id="map"></div>
