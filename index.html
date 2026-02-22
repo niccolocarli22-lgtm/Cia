@@ -2,35 +2,300 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Nico Intelligence Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NICO OS v13.0 - Tactical Map</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
     <style>
-        body { margin: 0; background: #000; color: #00ff41; font-family: 'Courier New', monospace; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.6) contrast(1.2); }
-        .ui-overlay {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(0, 20, 0, 0.9); border: 1px solid #00ff41;
-            padding: 15px; width: 300px; box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body { 
+            margin: 0; background: #000; color: #00ff41; 
+            font-family: 'JetBrains Mono', monospace; overflow: hidden; 
         }
-        .ai-terminal {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(0, 10, 0, 0.85); border: 1px solid #00ff41;
-            width: 80%; padding: 15px; font-size: 14px;
+
+        /* Mappa con stile geografico/politico */
+        #map { height: 100vh; width: 100vw; background: #1a1a1a; }
+        
+        #three-container { position: absolute; inset: 0; display: none; background: #000; z-index: 5; }
+        #three-container.active { display: block; }
+
+        .sidebar {
+            position: fixed; left: 0; top: 0; bottom: 0; width: 50px;
+            background: rgba(0, 0, 0, 0.9); border-right: 1px solid #00ff41;
+            z-index: 2000; display: flex; flex-direction: column; align-items: center; 
+            backdrop-filter: blur(10px); transition: width 0.3s;
         }
-        h1 { font-size: 18px; margin: 0 0 10px 0; border-bottom: 1px solid #00ff41; }
-        .data-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .sidebar:hover { width: 180px; }
+        .sidebar-item {
+            width: 100%; padding: 20px 15px; display: flex; align-items: center; gap: 15px;
+            cursor: pointer; color: #00ff41; white-space: nowrap; opacity: 0.6;
+        }
+        .sidebar-item:hover { opacity: 1; background: rgba(0, 255, 65, 0.1); }
+
+        .panel {
+            position: absolute; top: 15px; right: 15px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.95); border: 1px solid #00ff41;
+            padding: 15px; width: 320px; display: none;
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.4); border-radius: 4px;
+        }
+        .panel.active { display: block; }
+
+        .live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .live-box { 
+            background: #111; border: 1px solid #333; aspect-ratio: 16/9; position: relative; overflow: hidden;
+        }
+        .live-box img { width: 100%; height: 100%; object-fit: cover; }
+        .live-label { position: absolute; bottom: 0; width: 100%; background: rgba(0,255,65,0.6); font-size: 8px; text-align: center; color: #000; font-weight: bold; }
+
+        .thought-box {
+            background: #000d00; border: 1px solid #00ff41; padding: 12px;
+            font-size: 10px; min-height: 100px; max-height: 200px; overflow-y: auto;
+            margin-top: 10px; color: #00ff41; border-left: 5px solid #00ff41;
+            box-shadow: inset 0 0 10px rgba(0, 255, 65, 0.2);
+        }
+
+        button { background: #00ff41; color: #000; padding: 12px; font-weight: bold; width: 100%; font-size: 11px; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 1px; }
+        button:disabled { background: #004411; color: #008822; cursor: not-allowed; }
+        
+        .progress-bar-wrap { width: 100%; height: 6px; background: #002200; margin-top: 10px; border-radius: 3px; overflow: hidden; }
+        .progress-bar-fill { width: 0%; height: 100%; background: #00ff41; box-shadow: 0 0 10px #00ff41; transition: width 0.2s; }
+        
+        input { background: #000; border: 1px solid #00ff41; color: #00ff41; padding: 12px; width: 100%; font-size: 11px; outline: none; margin-bottom: 8px; }
+        input::placeholder { color: rgba(0, 255, 65, 0.4); }
     </style>
 </head>
 <body>
-    <div class="ui-overlay">
-        <h1>COMMAND CONSOLE v3</h1>
-        <div class="data-row"><span>VOLI:</span> <span id="flight-count">0</span></div>
-        <div class="data-row"><span>ISS:</span> <span id="iss-status">INIZIALIZZAZIONE</span></div>
-        <div class="data-row"><span>SETTORE:</span> <span>ITALIA</span></div>
+
+    <nav class="sidebar">
+        <div class="sidebar-item" onclick="showApp('map')"><span>[MAP]</span> <span>GEOGRAFICA</span></div>
+        <div class="sidebar-item" onclick="showApp('space')"><span>[3D]</span> <span>MODULO 3D</span></div>
+        <div class="sidebar-item" onclick="showApp('cams')"><span>[CAM]</span> <span>FEED LIVE</span></div>
+        <div class="sidebar-item" onclick="showApp('calc')"><span>[TRJ]</span> <span>CALCOLO AI</span></div>
+    </nav>
+
+    <div id="map-app" class="app-view"><div id="map"></div></div>
+    <div id="space-app" class="app-view" style="display:none"><div id="three-container"><div id="canvas-3d"></div></div></div>
+
+    <div id="panel-info" class="panel active">
+        <h2 class="text-[11px] font-bold mb-2 tracking-tighter text-center border-b border-[#00ff41] pb-1 uppercase">Stato Orbitale ISS</h2>
+        <div class="text-[10px] space-y-1 my-3">
+            <div class="flex justify-between"><span>ALT:</span> <span id="ui-alt" class="font-bold">--</span></div>
+            <div class="flex justify-between"><span>VEL:</span> <span id="ui-vel" class="font-bold">--</span></div>
+            <div class="flex justify-between"><span>COORDS:</span> <span id="ui-coords" class="font-bold">--</span></div>
+        </div>
+        <div class="pt-2 text-[9px] space-y-2">
+            <div class="flex items-center gap-2 text-[#00ff41]"><div class="w-4 h-[2px] bg-[#00ff41]"></div> TRAIETTORIA 12H (DATA)</div>
+            <div class="flex items-center gap-2 opacity-60"><div class="w-4 h-4 rounded-full border border-[#00ff41] border-dashed"></div> RAGGIO SCAN 1500KM</div>
+        </div>
+        <div id="follow-ui" style="display:none" class="mt-4 flex justify-between items-center p-2 bg-[#001100] border border-[#00ff41]">
+            <span class="text-[9px] font-bold">AGGANCIAMENTO 3D</span>
+            <input type="checkbox" id="follow-checkbox" class="w-4 h-4">
+        </div>
     </div>
-    <div class="ai-terminal" id="ai-log">🤖 AI: In attesa di dati...</div>
-    <div id="map"></div>
+
+    <div id="panel-cams" class="panel">
+        <h2 class="text-[11px] font-bold mb-3 border-b border-[#00ff41] pb-1 uppercase">Proxy Immagini Satellitari</h2>
+        <div class="live-grid">
+            <div class="live-box"><img src="https://www.n2yo.com/widgets/iss_radar.php" id="img1"><div class="live-label">RADAR SCAN</div></div>
+            <div class="live-box"><img src="https://images.webcams.travel/preview/1301842368.jpg" id="img2"><div class="live-label">METEO EU</div></div>
+            <div class="live-box"><img src="https://images.webcams.travel/preview/1169363063.jpg" id="img3"><div class="live-label">METEO US</div></div>
+            <div class="live-box"><img src="https://images.webcams.travel/preview/1000305344.jpg" id="img4"><div class="live-label">OCEANO VIEW</div></div>
+        </div>
+        <button onclick="refreshCams()" class="mt-3">AGGIORNA FEED</button>
+    </div>
+
+    <div id="panel-calc" class="panel">
+        <h2 class="text-[11px] font-bold mb-3 border-b border-[#00ff41] pb-1 uppercase">Pensiero di Gemini AI</h2>
+        <input id="cap-input" type="text" placeholder="CITTA' O AREA DA ANALIZZARE">
+        <button id="btn-analyze" onclick="startGeminiAnalysis()">ESEGUI ANALISI VETTORIALE</button>
+        
+        <div id="p-bar-wrap" class="progress-bar-wrap hidden">
+            <div id="p-bar-fill" class="progress-bar-fill"></div>
+        </div>
+        <div id="thought" class="thought-box hidden"></div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="app.js"></script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const apiKey = "";
+        let issData = { lat: 0, lng: 0, alt: 400 };
+        let currentApp = 'map';
+
+        // --- MAP ENGINE (Look Geografico Politico con Confini) ---
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20, 0], 3);
+        
+        // Tile Layer Geografico/Politico (OpenStreetMap con stile CartoDB Voyager per nomi e confini chiari)
+        const geoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Applichiamo un filtro per renderla "Nico Style" (toni scuri ma mantenendo nomi e confini)
+        map.getContainer().style.filter = "invert(95%) hue-rotate(180deg) brightness(0.9) contrast(1.1)";
+
+        const issMarker = L.circleMarker([0, 0], { radius: 8, color: '#ff0000', weight: 3, fillOpacity: 1, fillColor: '#fff' }).addTo(map);
+        const historicalLine = L.polyline([], { color: '#ff0000', weight: 2.5, opacity: 0.8 }).addTo(map);
+        const scanRange = L.circle([0, 0], { radius: 1500000, color: '#ff0000', weight: 1, fillOpacity: 0.1, dashArray: '5, 5' }).addTo(map);
+
+        // --- THREE JS ENGINE ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-3d').appendChild(renderer.domElement);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        
+        // Terra 3D
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(10, 64, 64), new THREE.MeshStandardMaterial({ 
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg') 
+        }));
+        scene.add(earth);
+        
+        // Luna
+        const moon = new THREE.Mesh(new THREE.SphereGeometry(2.5, 32, 32), new THREE.MeshStandardMaterial({ 
+            map: new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/moon.jpg') 
+        }));
+        moon.position.set(130, 40, -90);
+        scene.add(moon);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5), new THREE.DirectionalLight(0xffffff, 1.3));
+
+        // ISS MODELLO PROFESSIONALE
+        const issGroup = new THREE.Group();
+        const matMetal = new THREE.MeshStandardMaterial({color: 0xdddddd, metalness: 0.8});
+        const matSolar = new THREE.MeshStandardMaterial({color: 0xffaa00, side: THREE.DoubleSide});
+        
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.1), matMetal);
+        core.rotation.z = Math.PI/2;
+        issGroup.add(core);
+        
+        const truss = new THREE.Mesh(new THREE.BoxGeometry(0.05, 2.8, 0.05), matMetal);
+        issGroup.add(truss);
+        
+        for(let i=-1; i<=1; i+=2) {
+            for(let j=0; j<4; j++) {
+                const p = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.35), matSolar);
+                p.position.set(i * 0.55, (j - 1.5) * 0.48, 0);
+                issGroup.add(p);
+            }
+        }
+        scene.add(issGroup);
+
+        // --- LOGICA ---
+        window.showApp = (id) => {
+            document.querySelectorAll('.app-view').forEach(v => v.style.display = 'none');
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            
+            if(id === 'map') {
+                document.getElementById('map-app').style.display = 'block';
+                document.getElementById('panel-info').classList.add('active');
+                document.getElementById('three-container').classList.remove('active');
+            } else if(id === 'space') {
+                document.getElementById('space-app').style.display = 'block';
+                document.getElementById('panel-info').classList.add('active');
+                document.getElementById('three-container').classList.add('active');
+            } else {
+                document.getElementById('map-app').style.display = 'block';
+                document.getElementById('panel-'+id).classList.add('active');
+            }
+            document.getElementById('follow-ui').style.display = (id === 'space') ? 'flex' : 'none';
+            currentApp = id;
+            setTimeout(() => map.invalidateSize(), 100);
+        };
+
+        window.refreshCams = () => {
+            document.querySelectorAll('.live-box img').forEach(img => {
+                const base = img.src.split('?')[0];
+                img.src = base + '?t=' + Date.now();
+            });
+        };
+
+        window.startGeminiAnalysis = async () => {
+            const input = document.getElementById('cap-input').value;
+            const btn = document.getElementById('btn-analyze');
+            const thought = document.getElementById('thought');
+            const pWrap = document.getElementById('p-bar-wrap');
+            const pFill = document.getElementById('p-bar-fill');
+
+            btn.disabled = true;
+            thought.classList.remove('hidden');
+            pWrap.classList.remove('hidden');
+            thought.innerHTML = "> INIZIALIZZAZIONE NUCLEO GEMINI...<br>> RECUPERO DATI STORICI (12H)...<br>> ANALISI CONFINI TERRITORIALI...";
+            
+            let p = 0;
+            const timer = setInterval(() => {
+                p += 5; pFill.style.width = p + "%";
+                if(p >= 100) clearInterval(timer);
+            }, 80);
+
+            try {
+                // Calcolo traiettoria storica reale (Sinusoide orbitale inclinazione 51.6°)
+                const pts = [];
+                for(let i = -140; i <= 0; i++) {
+                    let lng = issData.lng + (i * 1.6);
+                    let lat = 51.6 * Math.sin((lng + 80) * Math.PI / 180);
+                    pts.push([lat, lng > 180 ? lng - 360 : (lng < -180 ? lng + 360 : lng)]);
+                }
+                historicalLine.setLatLngs(pts);
+
+                const prompt = `Analisi tattica su mappa geografica per l'area: ${input || 'posizione attuale'}. La ISS si trova a ${issData.lat.toFixed(2)}, ${issData.lng.toFixed(2)}. Descrivi i confini sorvolati e il tempo di passaggio. Rispondi in italiano in modo diretto, max 25 parole.`;
+                const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: "POST", headers: {"Content-Type":"application/json"},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const d = await r.json();
+                thought.innerHTML += `<br>> ANALISI COMPLETATA:<br><span style="color:#fff; font-weight:bold;">${d.candidates[0].content.parts[0].text}</span>`;
+            } catch(e) {
+                thought.innerHTML += "<br>> ERRORE DI COMUNICAZIONE SATELLITE.";
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        async function updateISS() {
+            try {
+                const r = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+                const d = await r.json();
+                issData = { lat: d.latitude, lng: d.longitude, alt: d.altitude, vel: d.velocity };
+                
+                issMarker.setLatLng([d.latitude, d.longitude]);
+                scanRange.setLatLng([d.latitude, d.longitude]);
+                
+                document.getElementById('ui-alt').innerText = d.altitude.toFixed(1) + " KM";
+                document.getElementById('ui-vel').innerText = d.velocity.toFixed(0) + " KM/H";
+                document.getElementById('ui-coords').innerText = `${d.latitude.toFixed(2)}, ${d.longitude.toFixed(2)}`;
+            } catch(e) {}
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const r = 10.45;
+            const phi = (90 - issData.lat) * (Math.PI / 180);
+            const theta = (issData.lng + 180) * (Math.PI / 180);
+            issGroup.position.set(-r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta));
+            issGroup.lookAt(0,0,0);
+            
+            if(currentApp === 'space') {
+                if(document.getElementById('follow-checkbox').checked) controls.target.lerp(issGroup.position, 0.1);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+        }
+
+        setInterval(updateISS, 5000); updateISS(); animate();
+    </script>
 </body>
 </html>
+
